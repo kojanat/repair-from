@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ระบบแจ้งซ่อม</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600&display=swap">
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js" charset="utf-8"></script>
+<style>
+/* ======== แก้ 2 บรรทัดนี้ในส่วน <script> ด้านล่าง: LIFF_ID และ API_URL ======== */
+:root {
+  --ground: #F2F4F6; --surface: #FFFFFF; --ink: #18212B; --muted: #5B6875; --line: #D3DAE1;
+  --go: #06C755; --go-ink: #FFFFFF; --tech: #2471A3; --warn: #B42318; --amber: #9A6309;
+  --focus: #1F5FAD; --radius-s: 8px; --radius-l: 14px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ground: #10161C; --surface: #19222B; --ink: #E7ECF1; --muted: #9AA7B4; --line: #2E3A46;
+    --focus: #6FA8F0; --warn: #F2827A; --amber: #E0A64A;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--ground); color: var(--ink); }
+body {
+  font-family: 'IBM Plex Sans Thai', 'Noto Sans Thai', 'Sarabun', -apple-system, 'Segoe UI', sans-serif;
+  font-size: 16px; line-height: 1.5; -webkit-text-size-adjust: 100%;
+  padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+}
+header {
+  background: var(--surface); border-bottom: 1px solid var(--line);
+  padding: calc(14px + env(safe-area-inset-top, 0px)) 18px 14px;
+}
+header h1 { margin: 0; font-size: 20px; font-weight: 600; }
+header p { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+main { padding: 8px 14px 0; max-width: 560px; margin: 0 auto; }
+section { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-l); padding: 14px; margin-top: 10px; }
+section > h2 { margin: 0 0 10px; font-size: 15px; font-weight: 600; }
+section > h2 small { font-weight: 400; color: var(--muted); font-size: 13px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  font: inherit; font-size: 15px; min-height: 40px; padding: 6px 14px; border-radius: 20px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer;
+}
+.chip[aria-pressed="true"] { background: var(--go); border-color: var(--go); color: var(--go-ink); font-weight: 500; }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--line); border-radius: var(--radius-s); overflow: hidden; }
+.seg button { font: inherit; font-size: 14px; min-height: 44px; padding: 6px 4px; border: 0; border-right: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--go); color: var(--go-ink); font-weight: 500; }
+.seg.stop button[aria-pressed="true"][data-stop="1"] { background: var(--warn); color: #FFFFFF; }
+input[type="text"], input[type="search"], input[type="time"], textarea {
+  font: inherit; font-size: 16px; width: 100%; padding: 10px 12px; border-radius: var(--radius-s);
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+}
+textarea { min-height: 72px; resize: vertical; }
+input::placeholder, textarea::placeholder { color: var(--muted); }
+.gap { margin-top: 10px; }
+.hint { margin: 6px 0 0; font-size: 13px; color: var(--muted); }
+.err { margin: 8px 0 0; font-size: 14px; color: var(--warn); }
+.sug { margin-top: 6px; border: 1px solid var(--line); border-radius: var(--radius-s); overflow: hidden; }
+.sug button { display: block; width: 100%; text-align: left; font: inherit; font-size: 15px; padding: 10px 12px; border: 0; border-bottom: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+.sug button:last-child { border-bottom: 0; }
+.sug b { font-weight: 600; }
+.urg { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.urg button {
+  font: inherit; text-align: left; padding: 10px 12px 10px 14px; border-radius: var(--radius-s);
+  border: 1px solid var(--line); border-left: 6px solid var(--u); background: var(--surface); color: var(--ink); cursor: pointer; min-height: 64px;
+}
+.urg button span { display: block; font-size: 13px; color: var(--muted); }
+.urg button strong { font-weight: 600; font-size: 15px; }
+.urg button[aria-pressed="true"] { background: var(--u); border-color: var(--u); color: #FFFFFF; }
+.urg button[aria-pressed="true"] span { color: rgba(255, 255, 255, 0.88); }
+.summary { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 4px 10px; font-size: 15px; }
+.summary dt { color: var(--muted); }
+.summary dd { margin: 0; }
+.summary .bad { color: var(--warn); font-weight: 500; }
+footer {
+  position: fixed; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--line);
+  padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px));
+}
+footer .inner { max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 8px; }
+.primary { font: inherit; font-size: 17px; font-weight: 600; min-height: 50px; border: 0; border-radius: 12px; background: var(--go); color: var(--go-ink); cursor: pointer; }
+.primary.tech { background: var(--tech); }
+.primary.amber { background: var(--amber); color: #FFFFFF; }
+.primary:disabled { opacity: 0.6; }
+.secondary { font: inherit; font-size: 15px; min-height: 44px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); cursor: pointer; }
+.notice { font-size: 14px; color: var(--warn); text-align: center; margin: 0; }
+.screen { min-height: 70vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 24px; gap: 10px; }
+.screen h2 { margin: 0; font-size: 20px; }
+.screen p { margin: 0; color: var(--muted); max-width: 34ch; }
+.screen pre { white-space: pre-wrap; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-s); padding: 12px; font: inherit; text-align: left; }
+.tick { width: 56px; height: 56px; border-radius: 28px; background: var(--go); color: #FFFFFF; font-size: 30px; display: flex; align-items: center; justify-content: center; }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+[hidden] { display: none !important; }
+@media (prefers-reduced-motion: no-preference) {
+  .tick { animation: pop 0.25s ease-out; }
+  @keyframes pop { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+}
+</style>
+</head>
+<body>
+<div id="app"><div class="screen"><p>กำลังเปิดฟอร์ม…</p></div></div>
+
+<script>
+// ===================== ตั้งค่า (แก้ 2 บรรทัดนี้) =====================
+const LIFF_ID = 'ใส่-LIFF-ID-ที่นี่';                 // เช่น 2001234567-AbCdEfGh
+const API_URL = 'https://script.google.com/macros/s/AKfycbzQ8u0QLm8AMP7H4pvWHPfjhJcOqqcawO0Suf91JFdfkFCESCdy7OX9weLfF1p-JUDN/exec';   // URL ของบอท (ใส่ให้แล้ว)
+// =====================================================================
+
+const app = document.getElementById('app');
+// แตะหรือพิมพ์ในหัวข้อไหน ข้อความเตือนของหัวข้อนั้นหายไป
+['click', 'input'].forEach(t => app.addEventListener(t, e => {
+  const sec = e.target.closest && e.target.closest('section');
+  if (sec && sec.fail && e.target.matches('button, input, textarea')) sec.fail('');
+}));
+
+// วางหน้าฟอร์ม แล้วเว้นที่ด้านล่างให้พอดีกับแถบปุ่ม
+function mount(...nodes) {
+  app.replaceChildren(...nodes);
+  const foot = nodes.find(n => n.tagName === 'FOOTER');
+  requestAnimationFrame(() => { document.body.style.paddingBottom = foot ? `${foot.offsetHeight + 16}px` : ''; });
+}
+const S = { form: 'request', job: '', idToken: '', inChat: false, cfg: null, from: '' };
+
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v === false || v == null) continue;
+    if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else if (k === 'style') el.style.cssText = v;
+    else el.setAttribute(k, v === true ? '' : v);
+  }
+  kids.flat().forEach(k => { if (k != null && k !== false) el.append(k.nodeType ? k : document.createTextNode(String(k))); });
+  return el;
+}
+
+function params() {
+  const sp = new URLSearchParams(location.search);
+  if (sp.get('form')) return sp;
+  const st = sp.get('liff.state');
+  if (st) {
+    const i = st.indexOf('?');
+    return new URLSearchParams(i >= 0 ? st.slice(i + 1) : st);
+  }
+  return sp;
+}
+
+async function api(name, extra) {
+  const body = Object.assign({ api: name, idToken: S.idToken, form: S.form, job: S.job }, extra || {});
+  const res = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) });
+  return res.json();
+}
+
+function screen(title, text, extra) {
+  document.body.style.paddingBottom = '';
+  app.replaceChildren(h('div', { class: 'screen' }, title ? h('h2', {}, title) : null, text ? h('p', {}, text) : null, extra || null));
+}
+
+// ---------- ส่วนประกอบของฟอร์ม ----------
+function section(title, note, ...body) {
+  const err = h('p', { class: 'err', hidden: true, role: 'alert' });
+  const sec = h('section', {}, h('h2', {}, title, note ? h('small', {}, ' ' + note) : null), ...body, err);
+  sec.fail = msg => { err.textContent = msg; err.hidden = !msg; if (msg) sec.scrollIntoView({ behavior: 'smooth', block: 'center' }); };
+  return sec;
+}
+
+function chips(options, { multi = false, value = multi ? [] : '', label = o => o, onChange } = {}) {
+  let cur = multi ? [...value] : value;
+  const box = h('div', { class: 'chips' });
+  const draw = () => box.replaceChildren(...options.map(o => h('button', {
+    type: 'button', class: 'chip', 'aria-pressed': String(multi ? cur.includes(o) : cur === o),
+    onclick: () => {
+      if (multi) cur = cur.includes(o) ? cur.filter(x => x !== o) : cur.concat(o);
+      else cur = cur === o ? '' : o;
+      draw();
+      onChange && onChange(cur);
+    },
+  }, label(o))));
+  draw();
+  box.get = () => cur;
+  box.set = v => { cur = v; draw(); };
+  return box;
+}
+
+function seg(options, { value = '', cls = '', isStop, onChange } = {}) {
+  let cur = value;
+  const box = h('div', { class: 'seg ' + cls, role: 'group' });
+  const draw = () => box.replaceChildren(...options.map(o => h('button', {
+    type: 'button', 'aria-pressed': String(cur === o), 'data-stop': isStop && isStop(o) ? '1' : null,
+    onclick: () => { cur = o; draw(); onChange && onChange(cur); },
+  }, o)));
+  draw();
+  box.get = () => cur;
+  return box;
+}
+
+function footer(...buttons) {
+  const notice = h('p', { class: 'notice', hidden: true, role: 'alert' });
+  const f = h('footer', {}, h('div', { class: 'inner' }, notice, ...buttons));
+  f.say = msg => { notice.textContent = msg; notice.hidden = !msg; };
+  return f;
+}
+
+// ---------- ส่งข้อมูล แล้วโพสต์ข้อความเข้ากลุ่มในนามผู้กรอก ----------
+async function send(apiName, data, message, btn, foot) {
+  btn.disabled = true;
+  foot.say('');
+  const old = btn.textContent;
+  btn.textContent = 'กำลังส่ง…';
+  try {
+    const r = await api(apiName, { data });
+    if (!r.ok) throw new Error(r.error || 'ส่งไม่สำเร็จ');
+    const text = `${message}\n#${r.code}`;
+    if (S.inChat) {
+      try {
+        await liff.sendMessages([{ type: 'text', text }]);
+        screen(null, null, h('div', {}, h('div', { class: 'tick', style: 'margin:0 auto 10px' }, '✓'), h('h2', {}, 'ส่งแล้ว'), h('p', {}, 'กำลังกลับไปที่กลุ่ม')));
+        setTimeout(() => liff.closeWindow(), 1200);
+        return;
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    // เปิดฟอร์มนอกกลุ่ม: ให้คัดลอกข้อความไปวางในกลุ่มเอง
+    const copy = h('button', { type: 'button', class: 'primary', onclick: async () => {
+      try { await navigator.clipboard.writeText(text); copy.textContent = 'คัดลอกแล้ว'; } catch (e) { copy.textContent = 'กดค้างที่ข้อความด้านบนเพื่อคัดลอก'; }
+    } }, 'คัดลอกข้อความ');
+    screen('อีกขั้นเดียว', 'ฟอร์มนี้ไม่ได้เปิดจากกลุ่ม LINE ให้คัดลอกข้อความนี้ไปวางในกลุ่มแจ้งซ่อมภายใน 1 ชั่วโมง', h('div', { style: 'width:100%;max-width:420px;display:flex;flex-direction:column;gap:10px' }, h('pre', {}, text), copy));
+  } catch (e) {
+    foot.say(e.message);
+    btn.disabled = false;
+    btn.textContent = old;
+  }
+}
+
+// ===================== ฟอร์มแจ้งซ่อม =====================
+function requestForm() {
+  const c = S.cfg;
+  const nameIn = h('input', { type: 'text', value: c.name || '', autocomplete: 'name', maxlength: 60 });
+  const secName = section('ผู้แจ้ง', null, nameIn);
+
+  const dept = chips(c.departments, { value: c.department || '' });
+  const secDept = section('หน่วยงาน', null, dept);
+
+  const otherIn = h('input', { type: 'text', placeholder: 'พิมพ์สถานที่สั้นๆ', hidden: true, class: 'gap', maxlength: 80 });
+  const zoneWrap = h('div', { class: 'gap', hidden: true });
+  let zone = null;
+  const area = chips(c.areas, { onChange: v => {
+    otherIn.hidden = v !== c.otherArea;
+    const zones = [...new Set(c.machines.filter(m => m.area === v && m.zone).map(m => m.zone))].sort();
+    zone = zones.length ? chips(zones, { onChange: () => drawSug() }) : null;
+    zoneWrap.replaceChildren(...(zone ? [h('p', { class: 'hint', style: 'margin:0 0 6px' }, 'โซน'), zone] : []));
+    zoneWrap.hidden = !zone;
+    machineIn.value = ''; drawSug();
+  } });
+  const secArea = section('พื้นที่', null, area, otherIn, zoneWrap);
+
+  const machineIn = h('input', { type: 'search', placeholder: 'พิมพ์เลขหรือชื่อเครื่อง เช่น A105', autocomplete: 'off', maxlength: 80, oninput: () => drawSug() });
+  const sug = h('div', { class: 'sug', hidden: true });
+  const norm = s => String(s || '').toUpperCase().replace(/\s+/g, '').replace(/^IJ-?/, '');
+  function drawSug() {
+    const a = area.get(), z = zone ? zone.get() : '', q = norm(machineIn.value);
+    let list = c.machines.filter(m => (!a || m.area === a) && (!z || m.zone === z));
+    if (q) list = list.filter(m => norm(m.code).includes(q) || norm(m.name).includes(q));
+    const exact = list.some(m => `${m.code} ${m.name}`.trim() === machineIn.value.trim());
+    const show = (q || z) && !exact ? list.slice(0, 8) : [];
+    sug.replaceChildren(...show.map(m => h('button', { type: 'button', onclick: () => { machineIn.value = `${m.code} ${m.name}`.trim(); drawSug(); } }, h('b', {}, m.code), ' ', m.name)));
+    sug.hidden = !show.length;
+  }
+  const secMachine = section('เครื่องจักร', 'พิมพ์ได้', machineIn, sug, h('p', { class: 'hint' }, 'ถ้าไม่มีในรายการ ใช้ตามที่พิมพ์ได้เลย'));
+
+  const sym = chips(c.symptoms, { multi: true });
+  const symNote = h('input', { type: 'text', class: 'gap', placeholder: 'พิมพ์อาการเพิ่มเติม (ถ้ามี)', maxlength: 300 });
+  const secSym = section('อาการเสีย', 'เลือกได้หลายข้อ', sym, symNote);
+
+  const agoWrap = h('div', { class: 'gap', hidden: true });
+  const timeIn = h('input', { type: 'time', class: 'gap', hidden: true });
+  const ago = chips(c.ago.map(a => a.label).concat('ระบุเวลา'), { onChange: v => { timeIn.hidden = v !== 'ระบุเวลา'; } });
+  agoWrap.append(h('p', { class: 'hint', style: 'margin:0 0 6px' }, 'เครื่องเริ่มเสียประมาณเมื่อไร'), ago, timeIn);
+  const stop = seg(c.stopOptions, { cls: 'stop', isStop: o => o !== c.stillRun, onChange: v => { agoWrap.hidden = v !== c.stopBefore; } });
+  const secStop = section('สภาพเครื่อง', null, stop, agoWrap);
+
+  let urgency = '';
+  const urgBox = h('div', { class: 'urg' });
+  const drawUrg = () => urgBox.replaceChildren(...c.urgency.map(u => h('button', {
+    type: 'button', style: `--u:${u.color}`, 'aria-pressed': String(urgency === u.label),
+    onclick: () => { urgency = u.label; drawUrg(); },
+  }, h('strong', {}, u.label), h('span', {}, u.full.replace(u.label, '').replace(/[()]/g, '').trim()))));
+  drawUrg();
+  const secUrg = section('ความเร่งด่วน', null, urgBox);
+
+  const go = h('button', { type: 'button', class: 'primary' }, 'ส่งแจ้งซ่อม');
+  const foot = footer(go);
+  go.addEventListener('click', () => {
+    const secs = [secName, secDept, secArea, secMachine, secSym, secStop, secUrg];
+    secs.forEach(s => s.fail(''));
+    const checks = [
+      [secName, !nameIn.value.trim(), 'กรอกชื่อผู้แจ้ง'],
+      [secDept, !dept.get(), 'เลือกหน่วยงาน'],
+      [secArea, !area.get(), 'เลือกพื้นที่'],
+      [secArea, area.get() === c.otherArea && !otherIn.value.trim(), 'พิมพ์สถานที่'],
+      [secMachine, !machineIn.value.trim(), 'เลือกหรือพิมพ์เครื่องจักร'],
+      [secSym, !sym.get().length && !symNote.value.trim(), 'เลือกหรือพิมพ์อาการเสีย'],
+      [secStop, !stop.get(), 'เลือกสภาพเครื่อง'],
+      [secStop, stop.get() === c.stopBefore && !ago.get(), 'เลือกเวลาที่เครื่องเริ่มเสีย'],
+      [secStop, ago.get() === 'ระบุเวลา' && stop.get() === c.stopBefore && !timeIn.value, 'ระบุเวลาที่เครื่องเริ่มเสีย'],
+      [secUrg, !urgency, 'เลือกความเร่งด่วน'],
+    ];
+    const bad = checks.find(x => x[1]);
+    if (bad) return bad[0].fail(bad[2]);
+    const agoItem = c.ago.find(a => a.label === ago.get());
+    const data = {
+      name: nameIn.value, department: dept.get(), area: area.get(), areaOther: otherIn.value,
+      zone: zone ? zone.get() : '', machine: machineIn.value, symptoms: sym.get(), symptomNote: symNote.value,
+      stop: stop.get(), agoMinutes: agoItem ? agoItem.minutes : null, failureTime: timeIn.value, urgency,
+    };
+    const short = (machineIn.value.split(' ')[0] || machineIn.value).slice(0, 20);
+    const what = (sym.get()[0] || symNote.value).slice(0, 30);
+    send('request', data, `📝 แจ้งซ่อม ${short} · ${what} (${urgency})`, go, foot);
+  });
+
+  mount(
+    h('header', {}, h('h1', {}, 'แจ้งซ่อม'), h('p', {}, 'กรอกครบแล้วกดส่ง งานจะเข้ากลุ่มช่างทันที')),
+    h('main', {}, secName, secDept, secArea, secMachine, secSym, secStop, secUrg), foot);
+}
+
+// ===================== สรุปงานสำหรับช่าง =====================
+function jobSummary() {
+  const j = S.cfg.job;
+  const t = s => (s || '').split(' ')[1] || s || '-';
+  const rows = [
+    ['เครื่อง', [j.zone ? `${j.area} / ${j.zone}` : j.area, j.machine].filter(Boolean).join(' · ')],
+    ['อาการ', j.symptom],
+    ['เริ่มเสีย', j.failureAt],
+    ['รับงาน', j.acceptedAt ? `${t(j.acceptedAt)}${j.repairStartAt ? ' · เริ่มซ่อม ' + t(j.repairStartAt) : ''}` : '-'],
+  ];
+  if (j.partsDetail) rows.push(['อะไหล่ที่สั่ง', j.partsDetail]);
+  const dl = h('dl', { class: 'summary', style: 'margin:0' }, ...rows.flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, v || '-')]));
+  if (j.rejectReason) dl.append(h('dt', {}, 'ตีกลับ'), h('dd', { class: 'bad' }, j.rejectReason));
+  return h('section', {}, dl);
+}
+
+// ===================== ฟอร์มส่งงาน =====================
+function submitForm() {
+  const c = S.cfg, j = c.job;
+  const fix = chips(c.fixes, { multi: true });
+  const fixNote = h('input', { type: 'text', class: 'gap', placeholder: 'รายละเอียดเพิ่ม (ถ้ามี)', maxlength: 300 });
+  const secFix = section('แก้ไขอย่างไร', 'เลือกได้หลายข้อ', fix, fixNote);
+
+  const cause = chips(c.causes);
+  const secCause = section('สาเหตุ', null, cause);
+
+  const type = seg(c.jobTypes);
+  const secType = section('ประเภทงาน', null, type, h('p', { class: 'hint' }, '“เครื่องเสีย” คือเสียกะทันหัน ใช้คิด MTTR / MTBF'));
+
+  const partOpts = [c.noParts].concat(j.partsDetail ? [j.partsDetail] : [], c.partsHistory.filter(p => p !== j.partsDetail));
+  const parts = chips(partOpts, {
+    multi: true,
+    label: o => (o === j.partsDetail ? `ตามที่สั่ง: ${o}` : o),
+    onChange: v => {
+      const last = v[v.length - 1];
+      if (last === c.noParts && v.length > 1) parts.set([c.noParts]);
+      else if (v.length > 1 && v.includes(c.noParts)) parts.set(v.filter(x => x !== c.noParts));
+    },
+  });
+  const partNote = h('input', { type: 'text', class: 'gap', placeholder: 'พิมพ์เพิ่ม เช่น สายไฟ 2 เมตร', maxlength: 300 });
+  const secParts = section('อะไหล่ที่ใช้', null, parts, partNote);
+
+  const timeIn = h('input', { type: 'time', class: 'gap', hidden: true });
+  const restored = seg(['ตอนนี้', 'ระบุเวลา'], { value: 'ตอนนี้', onChange: v => { timeIn.hidden = v !== 'ระบุเวลา'; } });
+  const secRestore = section('เครื่องกลับมาเดินได้', null, restored, timeIn);
+
+  const go = h('button', { type: 'button', class: 'primary tech' }, j.status === 'ตีกลับให้แก้ไข' ? 'ส่งงานอีกครั้ง' : 'ส่งงาน');
+  const toParts = ['กำลังดำเนินการ', 'ตีกลับให้แก้ไข'].includes(j.status)
+    ? h('button', { type: 'button', class: 'secondary', onclick: () => { S.form = 'parts'; S.from = 'submit'; partsForm(); window.scrollTo(0, 0); } }, 'ยังไม่เสร็จ: รอสั่งซื้ออะไหล่')
+    : null;
+  const foot = footer(go, toParts);
+  go.addEventListener('click', () => {
+    [secFix, secCause, secType, secParts, secRestore].forEach(s => s.fail(''));
+    const checks = [
+      [secFix, !fix.get().length && !fixNote.value.trim(), 'เลือกหรือพิมพ์วิธีแก้ไข'],
+      [secCause, !cause.get(), 'เลือกสาเหตุ'],
+      [secType, !type.get(), 'เลือกประเภทงาน'],
+      [secParts, !parts.get().length && !partNote.value.trim(), 'เลือก "ไม่ใช้อะไหล่" หรือระบุอะไหล่ที่ใช้'],
+      [secRestore, restored.get() === 'ระบุเวลา' && !timeIn.value, 'ระบุเวลาที่เครื่องกลับมาเดิน'],
+    ];
+    const bad = checks.find(x => x[1]);
+    if (bad) return bad[0].fail(bad[2]);
+    S.form = 'submit';
+    send('submit', {
+      fixes: fix.get(), fixNote: fixNote.value, cause: cause.get(), jobType: type.get(),
+      parts: parts.get(), partNote: partNote.value, restoredNow: restored.get() === 'ตอนนี้', restoredTime: timeIn.value,
+    }, `✅ ส่งงาน ${j.jobId}`, go, foot);
+  });
+
+  mount(
+    h('header', {}, h('h1', {}, `ส่งงาน ${j.jobId}`), h('p', {}, 'ตอบครบแล้วกดส่ง ผู้แจ้งจะได้รับแจ้งให้ตรวจรับ')),
+    h('main', {}, jobSummary(), secFix, secCause, secType, secParts, secRestore), foot);
+}
+
+// ===================== ฟอร์มรอสั่งซื้ออะไหล่ =====================
+function partsForm() {
+  const c = S.cfg, j = c.job;
+  const hist = c.partsHistory.length ? chips(c.partsHistory, { multi: true }) : null;
+  const note = h('textarea', { placeholder: 'รายการอะไหล่ จำนวน และวันที่คาดว่าจะได้\nเช่น มอเตอร์ 2HP 1 ตัว คาดว่าได้ 25/11', maxlength: 300, class: hist ? 'gap' : null });
+  const secParts = section('อะไหล่ที่ต้องสั่ง', hist ? 'เคยใช้กับเครื่องนี้' : null, hist, note);
+
+  const go = h('button', { type: 'button', class: 'primary amber' }, 'บันทึกรอสั่งซื้ออะไหล่');
+  const back = S.from === 'submit'
+    ? h('button', { type: 'button', class: 'secondary', onclick: () => { S.form = 'submit'; S.from = ''; submitForm(); window.scrollTo(0, 0); } }, 'กลับไปหน้าส่งงาน')
+    : null;
+  const foot = footer(go, back);
+  go.addEventListener('click', () => {
+    secParts.fail('');
+    const picked = hist ? hist.get() : [];
+    if (!picked.length && !note.value.trim()) return secParts.fail('เลือกหรือพิมพ์รายการอะไหล่');
+    S.form = 'parts';
+    send('parts', { parts: picked, partNote: note.value }, `📦 รอสั่งซื้ออะไหล่ ${j.jobId}`, go, foot);
+  });
+
+  mount(
+    h('header', {}, h('h1', {}, `รอสั่งซื้ออะไหล่ ${j.jobId}`), h('p', {}, 'บันทึกแล้วสถานะงานจะเปลี่ยน และผู้แจ้งจะได้รับแจ้ง')),
+    h('main', {}, jobSummary(), secParts), foot);
+}
+
+// ===================== เริ่มทำงาน =====================
+(async function main() {
+  if (LIFF_ID.startsWith('ใส่') || API_URL.startsWith('ใส่')) {
+    return screen('ยังไม่ได้ตั้งค่า', 'ผู้ดูแลระบบต้องใส่ LIFF_ID และ API_URL ในไฟล์ liff.html');
+  }
+  try {
+    await liff.init({ liffId: LIFF_ID });
+  } catch (e) {
+    return screen('เปิดฟอร์มไม่สำเร็จ', e.message);
+  }
+  if (!liff.isLoggedIn()) return liff.login({ redirectUri: location.href });
+
+  const p = params();
+  S.form = p.get('form') || 'request';
+  S.job = p.get('job') || '';
+  S.idToken = liff.getIDToken();
+  const ctx = liff.getContext();
+  S.inChat = !!ctx && ['group', 'room', 'utou'].includes(ctx.type);
+
+  try {
+    const cfg = await api('init');
+    if (!cfg.ok) return screen('เปิดฟอร์มไม่ได้', cfg.error);
+    S.cfg = cfg;
+  } catch (e) {
+    return screen('เชื่อมต่อระบบไม่ได้', 'ตรวจสอบอินเทอร์เน็ต แล้วปิดฟอร์มเปิดใหม่อีกครั้ง');
+  }
+  if (S.form === 'submit') submitForm();
+  else if (S.form === 'parts') partsForm();
+  else requestForm();
+})();
+</script>
+</body>
+</html>
